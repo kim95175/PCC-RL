@@ -107,11 +107,20 @@ def get_max_obs_vector(feature_names):
         result.append(feature.max_val)
     return np.array(result) 
 
+def _mi_metric_send_rate(mi):
+    dur = mi.get("send dur")
+    if dur > 0.0:
+        return 8.0 * mi.bytes_sent / dur
+    return 0.0
+
 def _mi_metric_recv_rate(mi):
     dur = mi.get("recv dur")
     if dur > 0.0:
         return 8.0 * (mi.bytes_acked - mi.packet_size) / dur
     return 0.0
+
+def _mi_metric_send_dur(mi):
+    return mi.send_end - mi.send_start
 
 def _mi_metric_recv_dur(mi):
     return mi.recv_end - mi.recv_start
@@ -120,15 +129,6 @@ def _mi_metric_avg_latency(mi):
     if len(mi.rtt_samples) > 0:
         return np.mean(mi.rtt_samples)
     return 0.0
-
-def _mi_metric_send_rate(mi):
-    dur = mi.get("send dur")
-    if dur > 0.0:
-        return 8.0 * mi.bytes_sent / dur
-    return 0.0
-
-def _mi_metric_send_dur(mi):
-    return mi.send_end - mi.send_start
 
 def _mi_metric_loss_ratio(mi):
     if mi.bytes_lost + mi.bytes_acked > 0:
@@ -175,19 +175,18 @@ def _mi_metric_conn_min_latency(mi):
         else:
             return 0.0
         
-    
-def _mi_metric_send_ratio(mi):
-    thpt = mi.get("recv rate")
-    send_rate = mi.get("send rate")
-    if (thpt > 0.0) and (send_rate < 1000.0 * thpt):
-        return send_rate / thpt
-    return 1.0
-
 def _mi_metric_latency_ratio(mi):
     min_lat = mi.get("conn min latency")
     cur_lat = mi.get("avg latency")
     if min_lat > 0.0:
         return cur_lat / min_lat
+    return 1.0
+
+def _mi_metric_send_ratio(mi):
+    thpt = mi.get("recv rate")
+    send_rate = mi.get("send rate")
+    if (thpt > 0.0) and (send_rate < 1000.0 * thpt):
+        return send_rate / thpt
     return 1.0
 
 SENDER_MI_METRICS = [

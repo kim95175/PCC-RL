@@ -56,10 +56,10 @@ USE_CWND = False
 class Link():
 
     def __init__(self, bandwidth, delay, queue_size, loss_rate):
-        self.bw = float(bandwidth)
-        self.dl = delay
-        self.lr = loss_rate
-        self.queue_delay = 0.0
+        self.bw = float(bandwidth)     # bandwidth
+        self.dl = delay                # delay ( latency )
+        self.lr = loss_rate            # loss rate
+        self.queue_delay = 0.0 
         self.queue_delay_update_time = 0.0
         self.max_queue_delay = queue_size / self.bw
 
@@ -178,7 +178,7 @@ class Network():
                 heapq.heappush(self.q, (new_event_time, sender, new_event_type, new_next_hop, new_latency, new_dropped))
 
         sender_mi = self.senders[0].get_run_data()
-        throughput = sender_mi.get("recv rate")
+        throughput = sender_mi.get("recv rate")  # 
         latency = sender_mi.get("avg latency")
         loss = sender_mi.get("loss ratio")
         bw_cutoff = self.links[0].bw * 0.8
@@ -233,7 +233,7 @@ class Sender():
         return result
 
     def apply_rate_delta(self, delta):
-        delta *= config.DELTA_SCALE
+        delta *= config.DELTA_SCALE  # 0.025 * action
         #print("Applying delta %f" % delta)
         if delta >= 0.0:
             self.set_rate(self.rate * (1.0 + delta))
@@ -352,10 +352,11 @@ class SimulatedNetworkEnv(gym.Env):
         self.viewer = None
         self.rand = None
 
-        self.min_bw, self.max_bw = (100, 500)
-        self.min_lat, self.max_lat = (0.05, 0.5)
-        self.min_queue, self.max_queue = (0, 8)
-        self.min_loss, self.max_loss = (0.0, 0.05)
+        # Link Parameter
+        self.min_bw, self.max_bw = (100, 500)       # Bandwidth
+        self.min_lat, self.max_lat = (0.05, 0.5)    # Latency
+        self.min_queue, self.max_queue = (0, 8)     # Queue size
+        self.min_loss, self.max_loss = (0.0, 0.05)  # Random Loss rate
         self.history_len = history_len
         print("History length: %d" % history_len)
         self.features = features.split(",")
@@ -373,12 +374,13 @@ class SimulatedNetworkEnv(gym.Env):
         self.last_thpt = None
         self.last_rate = None
 
+        # action space
         if USE_CWND:
             self.action_space = spaces.Box(np.array([-1e12, -1e12]), np.array([1e12, 1e12]), dtype=np.float32)
         else:
             self.action_space = spaces.Box(np.array([-1e12]), np.array([1e12]), dtype=np.float32)
                    
-
+        # observation space
         self.observation_space = None
         use_only_scale_free = True
         single_obs_min_vec = sender_obs.get_min_obs_vector(self.features)
@@ -406,7 +408,7 @@ class SimulatedNetworkEnv(gym.Env):
     def step(self, actions):
         #print("Actions: %s" % str(actions))
         #print(actions)
-        for i in range(0, 1):#len(actions)):
+        for i in range(0, 1): #len(actions)):
             #print("Updating rate for sender %d" % i)
             action = actions
             self.senders[i].apply_rate_delta(action[0])
@@ -452,17 +454,15 @@ class SimulatedNetworkEnv(gym.Env):
             sender.print_debug()
 
     def create_new_links_and_senders(self):
-        bw    = random.uniform(self.min_bw, self.max_bw)
-        lat   = random.uniform(self.min_lat, self.max_lat)
-        queue = 1 + int(np.exp(random.uniform(self.min_queue, self.max_queue)))
-        loss  = random.uniform(self.min_loss, self.max_loss)
-        #bw    = 200
-        #lat   = 0.03
-        #queue = 5
-        #loss  = 0.00
+        bw    = random.uniform(self.min_bw, self.max_bw) # 100 ~ 500
+        lat   = random.uniform(self.min_lat, self.max_lat) # 0.05 ~ 0.5
+        queue = 1 + int(np.exp(random.uniform(self.min_queue, self.max_queue))) # 2 ~ 1 + e^8 (2981)
+        loss  = random.uniform(self.min_loss, self.max_loss) # 0.0 ~ 0.05
         self.links = [Link(bw, lat, queue, loss), Link(bw, lat, queue, loss)]
         #self.senders = [Sender(0.3 * bw, [self.links[0], self.links[1]], 0, self.history_len)]
         #self.senders = [Sender(random.uniform(0.2, 0.7) * bw, [self.links[0], self.links[1]], 0, self.history_len)]
+        
+        # Sender(self, rate, path, dest, features, cwnd=25, history_len=10):
         self.senders = [Sender(random.uniform(0.3, 1.5) * bw, [self.links[0], self.links[1]], 0, self.features, history_len=self.history_len)]
         self.run_dur = 3 * lat
 
