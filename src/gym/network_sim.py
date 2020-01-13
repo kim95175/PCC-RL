@@ -27,7 +27,7 @@ import inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
-from common import sender_obs, config
+from common import sender_obs
 from common.simple_arg_parse import arg_or_default
 
 MAX_CWND = 5000
@@ -51,7 +51,10 @@ LOSS_PENALTY = 1.0
 USE_LATENCY_NOISE = False
 MAX_LATENCY_NOISE = 1.1
 
-USE_CWND = False
+DELTA_SCALE = arg_or_default("--delta-scale", 0.025)
+HISTORY_LEN = arg_or_default("--delta-scale", 2)
+
+USE_CWND = True
 
 class Link():
 
@@ -206,7 +209,7 @@ class Network():
 
 class Sender():
     
-    def __init__(self, rate, path, dest, features, cwnd=25, history_len=10):
+    def __init__(self, rate, path, dest, features, cwnd=25, history_len=HISTORY_LEN):
         self.id = Sender._get_next_id()
         self.starting_rate = rate
         self.rate = rate
@@ -233,7 +236,7 @@ class Sender():
         return result
 
     def apply_rate_delta(self, delta):
-        delta *= config.DELTA_SCALE  # 0.025 * action
+        delta *= DELTA_SCALE  # 0.025 * action
         #print("Applying delta %f" % delta)
         if delta >= 0.0:
             self.set_rate(self.rate * (1.0 + delta))
@@ -241,7 +244,7 @@ class Sender():
             self.set_rate(self.rate / (1.0 - delta))
 
     def apply_cwnd_delta(self, delta):
-        delta *= config.DELTA_SCALE
+        delta *= DELTA_SCALE
         #print("Applying delta %f" % delta)
         if delta >= 0.0:
             self.set_cwnd(self.cwnd * (1.0 + delta))
@@ -344,7 +347,7 @@ class Sender():
 class SimulatedNetworkEnv(gym.Env):
     
     def __init__(self,
-                 history_len=arg_or_default("--history-len", default=10),
+                 history_len=HISTORY_LEN,
                  features=arg_or_default("--input-features",
                     default="sent latency inflation,"
                           + "latency ratio,"
@@ -402,12 +405,13 @@ class SimulatedNetworkEnv(gym.Env):
     def _get_all_sender_obs(self):
         sender_obs = self.senders[0].get_obs()
         sender_obs = np.array(sender_obs).reshape(-1,)
-        #print(sender_obs)
+        print(sender_obs)
         return sender_obs
 
     def step(self, actions):
         #print("Actions: %s" % str(actions))
         #print(actions)
+        #self.print_debug()
         for i in range(0, 1): #len(actions)):
             #print("Updating rate for sender %d" % i)
             action = actions
