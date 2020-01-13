@@ -98,6 +98,7 @@ def get_min_obs_vector(feature_names):
     for feature_name in feature_names:
         feature = SenderMonitorIntervalMetric.get_by_name(feature_name)
         result.append(feature.min_val)
+    print("Getting min obs vector ", np.array(result))
     return np.array(result) 
 
 def get_max_obs_vector(feature_names):
@@ -105,6 +106,7 @@ def get_max_obs_vector(feature_names):
     for feature_name in feature_names:
         feature = SenderMonitorIntervalMetric.get_by_name(feature_name)
         result.append(feature.max_val)
+    print("Getting max obs vector ", np.array(result))    
     return np.array(result) 
 
 def _mi_metric_send_rate(mi):
