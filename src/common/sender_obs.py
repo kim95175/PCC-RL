@@ -34,8 +34,8 @@ class SenderMonitorInterval():
         self.bytes_acked = bytes_acked
         self.bytes_sent = bytes_sent
         self.bytes_lost = bytes_lost
-        self.send_start = send_start
-        self.send_end = send_end
+        self.send_start = send_start    # = recv_start
+        self.send_end = send_end        # = recv_end
         self.recv_start = recv_start
         self.recv_end = recv_end
         self.rtt_samples = rtt_samples
@@ -109,6 +109,12 @@ def get_max_obs_vector(feature_names):
     print("Getting max obs vector ", np.array(result))    
     return np.array(result) 
 
+def _mi_metric_send_dur(mi):    # = recv_dur
+    return mi.send_end - mi.send_start
+
+def _mi_metric_recv_dur(mi):
+    return mi.recv_end - mi.recv_start
+
 def _mi_metric_send_rate(mi):
     dur = mi.get("send dur")
     if dur > 0.0:
@@ -120,12 +126,6 @@ def _mi_metric_recv_rate(mi):
     if dur > 0.0:
         return 8.0 * (mi.bytes_acked - mi.packet_size) / dur
     return 0.0
-
-def _mi_metric_send_dur(mi):
-    return mi.send_end - mi.send_start
-
-def _mi_metric_recv_dur(mi):
-    return mi.recv_end - mi.recv_start
 
 def _mi_metric_avg_latency(mi):
     if len(mi.rtt_samples) > 0:
@@ -141,20 +141,6 @@ def _mi_metric_latency_increase(mi):
     half = int(len(mi.rtt_samples) / 2)
     if half >= 1:
         return np.mean(mi.rtt_samples[half:]) - np.mean(mi.rtt_samples[:half])
-    return 0.0
-
-def _mi_metric_ack_latency_inflation(mi):
-    dur = mi.get("recv dur")
-    latency_increase = mi.get("latency increase")
-    if dur > 0.0:
-        return latency_increase / dur
-    return 0.0
-
-def _mi_metric_sent_latency_inflation(mi):
-    dur = mi.get("send dur")
-    latency_increase = mi.get("latency increase")
-    if dur > 0.0:
-        return latency_increase / dur
     return 0.0
 
 _conn_min_latencies = {}
@@ -176,7 +162,21 @@ def _mi_metric_conn_min_latency(mi):
             return latency
         else:
             return 0.0
-        
+
+def _mi_metric_sent_latency_inflation(mi): # = ack_latency_inflation
+    dur = mi.get("send dur")
+    latency_increase = mi.get("latency increase")
+    if dur > 0.0:
+        return latency_increase / dur
+    return 0.0
+
+def _mi_metric_ack_latency_inflation(mi):  
+    dur = mi.get("recv dur")
+    latency_increase = mi.get("latency increase")
+    if dur > 0.0:
+        return latency_increase / dur
+    return 0.0
+
 def _mi_metric_latency_ratio(mi):
     min_lat = mi.get("conn min latency")
     cur_lat = mi.get("avg latency")
@@ -199,11 +199,11 @@ SENDER_MI_METRICS = [
     SenderMonitorIntervalMetric("avg latency", _mi_metric_avg_latency, 0.0, 100.0),
     SenderMonitorIntervalMetric("loss ratio", _mi_metric_loss_ratio, 0.0, 1.0),
     SenderMonitorIntervalMetric("ack latency inflation", _mi_metric_ack_latency_inflation, -1.0, 10.0),
-    SenderMonitorIntervalMetric("sent latency inflation", _mi_metric_sent_latency_inflation, -1.0, 10.0),
+    SenderMonitorIntervalMetric("sent latency inflation", _mi_metric_sent_latency_inflation, -1.0, 10.0),###
     SenderMonitorIntervalMetric("conn min latency", _mi_metric_conn_min_latency, 0.0, 100.0),
     SenderMonitorIntervalMetric("latency increase", _mi_metric_latency_increase, 0.0, 100.0),
-    SenderMonitorIntervalMetric("latency ratio", _mi_metric_latency_ratio, 1.0, 10000.0),
-    SenderMonitorIntervalMetric("send ratio", _mi_metric_send_ratio, 0.0, 1000.0)
+    SenderMonitorIntervalMetric("latency ratio", _mi_metric_latency_ratio, 1.0, 10000.0),###
+    SenderMonitorIntervalMetric("send ratio", _mi_metric_send_ratio, 0.0, 1000.0)###
 ]
 
 
