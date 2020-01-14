@@ -14,13 +14,14 @@
 
 import gym
 import network_sim
+import os
 import tensorflow.compat.v1 as tf
-
+os.environ['TF_CPP_MIN_LOG_LEVE'] = '2'
+import tensorflow.python.util.deprecation as deprecation
+deprecation._PRINT_DEPRECATION_WARNINGS = False
 from stable_baselines.common.policies import MlpPolicy
 from stable_baselines.common.policies import FeedForwardPolicy
 from stable_baselines import PPO1
-import os
-os.environ['TF_CPP_MIN_LOG_LEVE'] = '2'
 import sys
 import inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))

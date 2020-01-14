@@ -22,6 +22,7 @@ import time
 import random
 import json
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import sys
 import inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -190,8 +191,8 @@ class Network():
                 heapq.heappush(self.q, (new_event_time, sender, new_event_type, new_next_hop, new_latency, new_dropped))
 
         sender_mi = self.senders[0].get_run_data()
-        throughput = sender_mi.get("recv rate")  # 
-        latency = sender_mi.get("avg latency")
+        throughput = sender_mi.get("recv rate")  # sender_obs
+        latency = sender_mi.get("avg latency")  
         loss = sender_mi.get("loss ratio")
         bw_cutoff = self.links[0].bw * 0.8
         lat_cutoff = 2.0 * self.links[0].dl * 1.5
@@ -244,7 +245,6 @@ class Sender():
     def _get_next_id():
         result = Sender._next_id
         Sender._next_id += 1
-        print("##################sender id = ", result)
         return result
 
     # change sending rate
@@ -376,9 +376,9 @@ class SimulatedNetworkEnv(gym.Env):
         self.min_queue, self.max_queue = (0, 8)     # Queue size
         self.min_loss, self.max_loss = (0.0, 0.05)  # Random Loss rate
         self.history_len = history_len
-        print("History length: %d" % history_len)
-        self.features = features.split(",")
-        print("Features: %s" % str(self.features))
+        #Features: ['sent latency inflation', 'latency ratio', 'send ratio']
+        self.features = features.split(",") 
+        #print("Features: %s" % str(self.features)) 
 
         self.links = None
         self.senders = None
@@ -392,7 +392,7 @@ class SimulatedNetworkEnv(gym.Env):
         self.last_thpt = None
         self.last_rate = None
 
-        # action space
+        ##### action space
         if USE_CWND:
             self.action_space = spaces.Box(np.array([-1e12, -1e12]), np.array([1e12, 1e12]), dtype=np.float32)
         else:
@@ -400,11 +400,11 @@ class SimulatedNetworkEnv(gym.Env):
         print("---action_space----")
         print(self.action_space)
                    
-        # observation space
+        #### observation space
         self.observation_space = None
         use_only_scale_free = True
-        single_obs_min_vec = sender_obs.get_min_obs_vector(self.features)
-        single_obs_max_vec = sender_obs.get_max_obs_vector(self.features)
+        single_obs_min_vec = sender_obs.get_min_obs_vector(self.features) # [-1, 1, 0]
+        single_obs_max_vec = sender_obs.get_max_obs_vector(self.features) # [10, 10,000, 1,000]
         self.observation_space = spaces.Box(np.tile(single_obs_min_vec, self.history_len),
                                             np.tile(single_obs_max_vec, self.history_len),
                                             dtype=np.float32)
@@ -431,7 +431,6 @@ class SimulatedNetworkEnv(gym.Env):
         #self.senders = [Sender(random.uniform(0.2, 0.7) * bw, [self.links[0], self.links[1]], 0, self.history_len)]
         #Sender(self, rate, path, dest, features, cwnd=25, history_len=10):
 
-
     def seed(self, seed=None):
         self.rand, seed = seeding.np_random(seed)
         return [seed]
@@ -456,11 +455,12 @@ class SimulatedNetworkEnv(gym.Env):
                 self.senders[i].apply_cwnd_delta(action[1]) # action[1] = cwnd 조절
 
         #print("Running for %fs" % self.run_dur)    # run_dur = 초기값 3 * lat
-        reward = self.net.run_for_dur(self.run_dur)  
+        reward = self.net.run_for_dur(self.run_dur)  # reward
         for sender in self.senders:
             sender.record_run()
         self.steps_taken += 1
-        sender_obs = self._get_all_sender_obs()
+        sender_obs = self._get_all_sender_obs()  # state
+
         sender_mi = self.senders[0].get_run_data()
         event = {}
         event["Name"] = "Step"
@@ -502,8 +502,9 @@ class SimulatedNetworkEnv(gym.Env):
         self.episodes_run += 1
         if self.episodes_run > 0 and self.episodes_run % 100 == 0:
             self.dump_events_to_file("pcc_env_log_run_%d.json" % self.episodes_run)
+            #self.dump_events_to_txt("pcc_env_log_run_%d.txt" % self.episodes_run)
         self.event_record = {"Events":[]}
-        self.net.run_for_dur(self.run_dur)
+        self.net.run_for_dur(self.run_dur)   # 이건 왜있징
         self.net.run_for_dur(self.run_dur)
         self.reward_ewma *= 0.99
         self.reward_ewma += 0.01 * self.reward_sum
@@ -522,6 +523,10 @@ class SimulatedNetworkEnv(gym.Env):
     def dump_events_to_file(self, filename):
         with open(filename, 'w') as f:
             json.dump(self.event_record, f, indent=4)
+
+    def dump_events_to_txt(self, filename):
+        with open(filename, 'w') as f:
+            f.write(self.event_record)
 
 register(id='PccNs-v0', entry_point='network_sim:SimulatedNetworkEnv')
 #env = SimulatedNetworkEnv()

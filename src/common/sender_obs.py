@@ -93,7 +93,7 @@ class SenderMonitorIntervalMetric():
         return SenderMonitorIntervalMetric._all_metrics[name]
 
 def get_min_obs_vector(feature_names):
-    print("Getting min obs for %s" % feature_names)
+    #print("Getting min obs for %s" % feature_names)
     result = []
     for feature_name in feature_names:
         feature = SenderMonitorIntervalMetric.get_by_name(feature_name)
@@ -192,18 +192,24 @@ def _mi_metric_send_ratio(mi):
     return 1.0
 
 SENDER_MI_METRICS = [
-    SenderMonitorIntervalMetric("send rate", _mi_metric_send_rate, 0.0, 1e9, 1e7),
-    SenderMonitorIntervalMetric("recv rate", _mi_metric_recv_rate, 0.0, 1e9, 1e7),
     SenderMonitorIntervalMetric("recv dur", _mi_metric_recv_dur, 0.0, 100.0),
     SenderMonitorIntervalMetric("send dur", _mi_metric_send_dur, 0.0, 100.0),
+    SenderMonitorIntervalMetric("send rate", _mi_metric_send_rate, 0.0, 1e9, 1e7),
+
+    ### reward feature ###
+    SenderMonitorIntervalMetric("recv rate", _mi_metric_recv_rate, 0.0, 1e9, 1e7),
     SenderMonitorIntervalMetric("avg latency", _mi_metric_avg_latency, 0.0, 100.0),
     SenderMonitorIntervalMetric("loss ratio", _mi_metric_loss_ratio, 0.0, 1.0),
+
     SenderMonitorIntervalMetric("ack latency inflation", _mi_metric_ack_latency_inflation, -1.0, 10.0),
-    SenderMonitorIntervalMetric("sent latency inflation", _mi_metric_sent_latency_inflation, -1.0, 10.0),###
     SenderMonitorIntervalMetric("conn min latency", _mi_metric_conn_min_latency, 0.0, 100.0),
     SenderMonitorIntervalMetric("latency increase", _mi_metric_latency_increase, 0.0, 100.0),
-    SenderMonitorIntervalMetric("latency ratio", _mi_metric_latency_ratio, 1.0, 10000.0),###
-    SenderMonitorIntervalMetric("send ratio", _mi_metric_send_ratio, 0.0, 1000.0)###
+    
+    ### History feature ###
+    SenderMonitorIntervalMetric("sent latency inflation", _mi_metric_sent_latency_inflation, -1.0, 10.0),
+    SenderMonitorIntervalMetric("latency ratio", _mi_metric_latency_ratio, 1.0, 10000.0),
+    SenderMonitorIntervalMetric("send ratio", _mi_metric_send_ratio, 0.0, 1000.0)
+
 ]
 
 
