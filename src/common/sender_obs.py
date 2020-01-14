@@ -50,12 +50,14 @@ class SenderMonitorInterval():
             return result
 
     # Convert the observation parts of the monitor interval into a numpy array
-    def as_array(self, features):
+    # Convert 시 scaling factor로 나눠준다.
+    def mi_as_array(self, features):
         return np.array([self.get(f) / SenderMonitorIntervalMetric.get_by_name(f).scale for f in features])
 
 class SenderHistory():
+    #self.history = sender_obs.SenderHistory(self.history_len, self.features, self.id)
     def __init__(self, length, features, sender_id):
-        self.features = features
+        self.features = features ## ['sent latency inflation', 'latency ratio', 'send ratio']
         self.values = []
         self.sender_id = sender_id
         for i in range(0, length):
@@ -68,7 +70,7 @@ class SenderHistory():
     def as_array(self):
         arrays = []
         for mi in self.values:
-            arrays.append(mi.as_array(self.features))
+            arrays.append(mi.mi_as_array(self.features))
         arrays = np.array(arrays).flatten()
         return arrays
 
@@ -124,7 +126,7 @@ def _mi_metric_send_rate(mi):
 def _mi_metric_recv_rate(mi):
     dur = mi.get("recv dur")
     if dur > 0.0:
-        return 8.0 * (mi.bytes_acked - mi.packet_size) / dur
+        return 8.0 * (mi.bytes_acked - mi.packet_size) / dur  #왜 빼주징
     return 0.0
 
 def _mi_metric_avg_latency(mi):

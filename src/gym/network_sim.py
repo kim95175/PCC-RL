@@ -138,14 +138,15 @@ class Network():
 
         while self.cur_time < end_time:
             event_time, sender, event_type, next_hop, cur_latency, dropped = heapq.heappop(self.q)
-            #print("Got event %s from sender %d to link %d, latency %f at time %f" % (event_type, sender.id, next_hop, cur_latency, event_time))
+            print("Got event %s from sender %d to link %d, latency %f at time %f" % (event_type, sender.id, next_hop, cur_latency, event_time))
             self.cur_time = event_time
+            # new event for next packet
             new_event_time = event_time
             new_event_type = event_type
             new_next_hop = next_hop
             new_latency = cur_latency
             new_dropped = dropped
-            push_new_event = False
+            push_new_event = False # packet 손실시 push 하지 않음
 
             # event type == ACK
             if event_type == EVENT_TYPE_ACK:
@@ -164,6 +165,7 @@ class Network():
                     new_latency += link_latency
                     new_event_time += link_latency
                     push_new_event = True
+
             # event type == SEND
             if event_type == EVENT_TYPE_SEND:
                 if next_hop == 0:
@@ -305,6 +307,7 @@ class Sender():
         self.lost += 1
         self.bytes_in_flight -= BYTES_PER_PACKET
 
+    # state 계산 후 return
     def get_obs(self):
         return self.history.as_array()
 
@@ -312,6 +315,7 @@ class Sender():
         smi = self.get_run_data()
         self.history.step(smi)  # pop old history and push new history
 
+    # MI observation data 가져오기
     def get_run_data(self):
         obs_end_time = self.net.get_cur_time()
         
@@ -443,8 +447,8 @@ class SimulatedNetworkEnv(gym.Env):
 
     # step
     def step(self, actions):
-        #print("Actions: %s" % str(actions))     # acitons = Rate Change Factor #print(actions)
-        #self.print_debug()
+        print("Actions: %s" % str(actions))     # acitons = Rate Change Factor #print(actions)
+        self.print_debug()
 
         # change transmission rate
         for i in range(0, 1): #len(actions)):
@@ -480,7 +484,6 @@ class SimulatedNetworkEnv(gym.Env):
         if event["Latency"] > 0.0:
             self.run_dur = 0.5 * sender_mi.get("avg latency")
         #print("Sender obs: %s" % sender_obs)
-
         should_stop = False
 
         self.reward_sum += reward
