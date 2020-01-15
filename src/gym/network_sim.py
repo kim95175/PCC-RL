@@ -53,7 +53,7 @@ USE_LATENCY_NOISE = False
 MAX_LATENCY_NOISE = 1.1
 
 DELTA_SCALE = arg_or_default("--delta-scale", 0.025) # default = 0.025
-HISTORY_LEN = arg_or_default("--history-len", 1)  # default = 10
+HISTORY_LEN = arg_or_default("--history-len", 10)  # default = 10
 
 USE_CWND = False    # default = False
 
@@ -83,7 +83,7 @@ class Link():
         extra_delay = 1.0 / self.bw
         #print("Extra delay: %f, Current delay: %f, Max delay: %f" % (extra_delay, self.queue_delay, self.max_queue_delay))
         if extra_delay + self.queue_delay > self.max_queue_delay:  # queue_delay > queue_size - 1 / bandwidth
-            #print("\tDrop!")
+        #    print("\tDrop!")
             return False
         self.queue_delay += extra_delay
         #print("\tNew delay = %f" % self.queue_delay)
@@ -138,7 +138,8 @@ class Network():
 
         while self.cur_time < end_time:
             event_time, sender, event_type, next_hop, cur_latency, dropped = heapq.heappop(self.q)
-            print("Got event %s from sender %d to link %d, latency %f at time %f" % (event_type, sender.id, next_hop, cur_latency, event_time))
+            #print("######### cur_time %f, end time ########", self.cur_time, end_time)
+            #print("##Got event %s from sender to link %d, latency %f at time %f q size = %d" % (event_type, next_hop, cur_latency, event_time, len(self.q)))
             self.cur_time = event_time
             # new event for next packet
             new_event_time = event_time
@@ -150,7 +151,7 @@ class Network():
 
             # event type == ACK
             if event_type == EVENT_TYPE_ACK:
-                if next_hop == len(sender.path):
+                if next_hop == len(sender.path): # len(sender,path) = 2
                     if dropped:
                         sender.on_packet_lost()
                         #print("Packet lost at time %f" % self.cur_time)
@@ -169,17 +170,22 @@ class Network():
             # event type == SEND
             if event_type == EVENT_TYPE_SEND:
                 if next_hop == 0:
+                    #print("next_hop = 0")
                     #print("Packet sent at time %f" % self.cur_time)
                     if sender.can_send_packet():
                         sender.on_packet_sent()
                         push_new_event = True
                     heapq.heappush(self.q, (self.cur_time + (1.0 / sender.rate), sender, EVENT_TYPE_SEND, 0, 0.0, False))
-                
                 else:
+                    # this situation not happen
                     push_new_event = True
 
                 if next_hop == sender.dest:
+                    #print("next_hop = seder.dest, event type S -> A")
                     new_event_type = EVENT_TYPE_ACK
+                else:
+                    # this situation not happen
+                    pass
                 new_next_hop = next_hop + 1
                 
                 link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
@@ -187,9 +193,11 @@ class Network():
                     link_latency *= random.uniform(1.0, MAX_LATENCY_NOISE)
                 new_latency += link_latency
                 new_event_time += link_latency
-                new_dropped = not sender.path[next_hop].packet_enters_link(self.cur_time)
+                new_dropped = not sender.path[next_hop].packet_enters_link(self.cur_time) 
+                                    # if dropeed = True
                    
             if push_new_event:
+                #print("##Push event %s from sender to link %d, latency %f at time %f" % (new_event_type, new_next_hop, new_latency, new_event_time))
                 heapq.heappush(self.q, (new_event_time, sender, new_event_type, new_next_hop, new_latency, new_dropped))
 
         sender_mi = self.senders[0].get_run_data()
@@ -235,7 +243,7 @@ class Sender():
         self.rtt_samples = []
         self.sample_time = []
         self.net = None
-        self.path = path                # [self.links[0], self.links[1]]
+        self.path = path                # [self.links[0], self.links[1]] LIink
         self.dest = dest                # 0
         self.history_len = history_len  
         self.features = features        #['sent latency inflation', 'latency ratio', 'send ratio']
@@ -291,11 +299,11 @@ class Sender():
     def register_network(self, net):
         self.net = net
 
+    # sender observation
     def on_packet_sent(self):
         self.sent += 1
         self.bytes_in_flight += BYTES_PER_PACKET
 
-    # sender.on_packet_acked(cur_latency)
     def on_packet_acked(self, rtt):
         self.acked += 1
         self.rtt_samples.append(rtt)
@@ -447,8 +455,8 @@ class SimulatedNetworkEnv(gym.Env):
 
     # step
     def step(self, actions):
-        print("Actions: %s" % str(actions))     # acitons = Rate Change Factor #print(actions)
-        self.print_debug()
+        #print("Actions: %s" % str(actions))     # acitons = Rate Change Factor #print(actions)
+        #self.print_debug()
 
         # change transmission rate
         for i in range(0, 1): #len(actions)):
