@@ -66,9 +66,10 @@ class Link():
         self.lr = loss_rate            # random loss rate
         self.queue_delay = 0.0 
         self.queue_delay_update_time = 0.0
-        self.max_queue_delay = queue_size / self.bw
+        self.max_queue_delay = queue_size / self.bw # queue size * sec / bit 
 
     def get_cur_queue_delay(self, event_time):
+        #print("qdelay %f, event_time %f, qdelaytime %f" %(self.queue_delay, event_time, self.queue_delay_update_time))
         return max(0.0, self.queue_delay - (event_time - self.queue_delay_update_time))
 
     def get_cur_latency(self, event_time):
@@ -77,13 +78,14 @@ class Link():
     # random loss and loss by delay 발생
     def packet_enters_link(self, event_time):
         if (random.random() < self.lr):     # random loss rate
+            #print("\t Random Drop!")
             return False
         self.queue_delay = self.get_cur_queue_delay(event_time)
         self.queue_delay_update_time = event_time
         extra_delay = 1.0 / self.bw
         #print("Extra delay: %f, Current delay: %f, Max delay: %f" % (extra_delay, self.queue_delay, self.max_queue_delay))
         if extra_delay + self.queue_delay > self.max_queue_delay:  # queue_delay > queue_size - 1 / bandwidth
-        #    print("\tDrop!")
+            #print("\t Congestion Drop!")
             return False
         self.queue_delay += extra_delay
         #print("\tNew delay = %f" % self.queue_delay)
@@ -130,7 +132,7 @@ class Network():
         #print("[time step ",self.cur_time, "]")
         return self.cur_time
     
-    # network run for dur ( 3 * lat )
+    # network run for dur ( 3 * lat ) = T_m 
     def run_for_dur(self, dur):
         end_time = self.cur_time + dur
         for sender in self.senders:
@@ -149,25 +151,8 @@ class Network():
             new_dropped = dropped
             push_new_event = False # packet 손실시 push 하지 않음
 
-            # event type == ACK
-            if event_type == EVENT_TYPE_ACK:
-                if next_hop == len(sender.path): # len(sender,path) = 2
-                    if dropped:
-                        sender.on_packet_lost()
-                        #print("Packet lost at time %f" % self.cur_time)
-                    else:
-                        sender.on_packet_acked(cur_latency)
-                        #print("Packet acked at time %f" % self.cur_time)
-                else:
-                    new_next_hop = next_hop + 1
-                    link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
-                    if USE_LATENCY_NOISE:
-                        link_latency *= random.uniform(1.0, MAX_LATENCY_NOISE)
-                    new_latency += link_latency
-                    new_event_time += link_latency
-                    push_new_event = True
-
             # event type == SEND
+            # 1. send packet to dest through link0
             if event_type == EVENT_TYPE_SEND:
                 if next_hop == 0:
                     #print("next_hop = 0")
@@ -183,9 +168,6 @@ class Network():
                 if next_hop == sender.dest:
                     #print("next_hop = seder.dest, event type S -> A")
                     new_event_type = EVENT_TYPE_ACK
-                else:
-                    # this situation not happen
-                    pass
                 new_next_hop = next_hop + 1
                 
                 link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
@@ -195,6 +177,26 @@ class Network():
                 new_event_time += link_latency
                 new_dropped = not sender.path[next_hop].packet_enters_link(self.cur_time) 
                                     # if dropeed = True
+            
+            # event type == ACK
+            if event_type == EVENT_TYPE_ACK:
+                # 3. packet ack or drop
+                if next_hop == len(sender.path): # len(sender,path) = 2
+                    if dropped:
+                        sender.on_packet_lost()
+                        #print("Packet lost at time %f" % self.cur_time)
+                    else:
+                        sender.on_packet_acked(cur_latency)
+                        #print("Packet acked at time %f" % self.cur_time)
+                # 2. send ack to sender through link[1]
+                else:
+                    new_next_hop = next_hop + 1
+                    link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
+                    if USE_LATENCY_NOISE:
+                        link_latency *= random.uniform(1.0, MAX_LATENCY_NOISE)
+                    new_latency += link_latency
+                    new_event_time += link_latency
+                    push_new_event = True
                    
             if push_new_event:
                 #print("##Push event %s from sender to link %d, latency %f at time %f" % (new_event_type, new_next_hop, new_latency, new_event_time))
@@ -213,9 +215,8 @@ class Network():
         # Super high throughput
         #reward = REWARD_SCALE * (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
-        # Very high thpt
+        # Very high thpt = defualut
         reward = (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
-        
         # High thpt
         #reward = REWARD_SCALE * (5.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
@@ -457,6 +458,7 @@ class SimulatedNetworkEnv(gym.Env):
     def step(self, actions):
         #print("Actions: %s" % str(actions))     # acitons = Rate Change Factor #print(actions)
         #self.print_debug()
+        #print("Step: %d" %self.steps_taken )
 
         # change transmission rate
         for i in range(0, 1): #len(actions)):
@@ -491,6 +493,7 @@ class SimulatedNetworkEnv(gym.Env):
         self.event_record["Events"].append(event)
         if event["Latency"] > 0.0:
             self.run_dur = 0.5 * sender_mi.get("avg latency")
+            #print("run_dur control : %f" %self.run_dur)
         #print("Sender obs: %s" % sender_obs)
         should_stop = False
 
