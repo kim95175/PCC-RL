@@ -60,7 +60,7 @@ model.learn(total_timesteps=(9600 * 410))
 ##
 #   Save the model to the location specified below.
 ##
-default_export_dir = "/tmp/pcc_saved_models/model_A/"
+default_export_dir = /home/airman/Github/PCC-RL/src/pcc_saved_models/model_online/"
 export_dir = arg_or_default("--model-dir", default=default_export_dir)
 with model.graph.as_default():
 
