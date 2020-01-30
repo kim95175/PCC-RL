@@ -40,7 +40,9 @@ RESET_RATE_MAX = 100.0
 RESET_RATE_MIN = 6.0
 RESET_RATE_MAX = 6.0
 
-MODEL_PATH = arg_or_default("--model-path", "/tmp/")
+#MODEL_PATH = arg_or_default("--model-path", "/tmp/")
+MODEL_PATH = arg_or_default("--model-path", "/home/airman/Github/PCC-RL/src/icml_paper_model/")
+
 
 for arg in sys.argv:
     arg_str = "NULL"
