@@ -60,12 +60,12 @@ for i in range(0, 1):
         saver = tf.train.Saver()                                                                     
         saver.save(training_sess, "./pcc_model_%d.ckpt" % i)
     model.learn(total_timesteps=(1600 * 410))
-    #model.learn(total_timesteps=(1600 * 100))
+    #model.learn(total_timesteps=(1600 * 150))
 
 #
 #   Save the model to the location specified below.
 ##
-default_export_dir = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_A/"
+default_export_dir = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_lat/"
 export_dir = arg_or_default("--model-dir", default=default_export_dir)
 with model.graph.as_default():
 
