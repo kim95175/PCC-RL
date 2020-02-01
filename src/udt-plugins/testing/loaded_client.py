@@ -40,9 +40,9 @@ RESET_RATE_MAX = 100.0
 RESET_RATE_MIN = 6.0
 RESET_RATE_MAX = 6.0
 
-#MODEL_PATH = arg_or_default("--model-path", "/tmp/")
-MODEL_PATH = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_lat/"
-print("MODEL : ", MODEL_PATH)
+DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_paper/"
+MODEL_PATH = arg_or_default("--model-path", DEFAULT_MODEL)
+
 
 for arg in sys.argv:
     arg_str = "NULL"

@@ -216,13 +216,13 @@ class Network():
         #reward = REWARD_SCALE * (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
         # Very high thpt = defualut = model_A
-        #reward = (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
+        reward = (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
         # High thpt
         #reward = REWARD_SCALE * (5.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
         # Low latency = model_B
         #reward = REWARD_SCALE * (2.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
-        reward = (2.0 * throughput / (8 * BYTES_PER_PACKET) - 10e3 * latency - 2e3 * loss)
+        #reward = (2.0 * throughput / (8 * BYTES_PER_PACKET) - 10e3 * latency - 2e3 * loss)
         #if reward > 857:
         #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
 
@@ -266,10 +266,18 @@ class Sender():
     def apply_rate_delta(self, delta):
         delta *= DELTA_SCALE  # 0.025 * action
         #print("Applying delta %f" % delta)
+        
         if delta >= 0.0:
             self.set_rate(self.rate * (1.0 + delta))
         else:
             self.set_rate(self.rate / (1.0 - delta))
+        '''
+        #bad model
+        if delta >= 0.0:
+            self.set_rate(self.rate * (1.0 + delta))
+        else:
+            self.set_rate(self.rate * (1.0 - delta))
+        '''
 
     def apply_cwnd_delta(self, delta):
         delta *= DELTA_SCALE
