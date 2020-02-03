@@ -65,7 +65,7 @@ for i in range(0, 1):
 #
 #   Save the model to the location specified below.
 ##
-default_export_dir = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_/"
+default_export_dir = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_thpt/"
 export_dir = arg_or_default("--model-dir", default=default_export_dir)
 with model.graph.as_default():
 

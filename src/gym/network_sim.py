@@ -215,7 +215,7 @@ class Network():
         # Super high throughput
         #reward = REWARD_SCALE * (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
-        # Very high thpt = defualut = model_A
+        # Very high thpt = defualut = model_thpt
         reward = (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
         # High thpt
         #reward = REWARD_SCALE * (5.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
@@ -273,10 +273,7 @@ class Sender():
             self.set_rate(self.rate / (1.0 - delta))
         '''
         #bad model
-        if delta >= 0.0:
-            self.set_rate(self.rate * (1.0 + delta))
-        else:
-            self.set_rate(self.rate * (1.0 - delta))
+        self.rate = MIN_RATE
         '''
 
     def apply_cwnd_delta(self, delta):
