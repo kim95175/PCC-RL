@@ -43,6 +43,9 @@ RESET_RATE_MAX = 6.0
 DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_minrate/"
 MODEL_PATH = arg_or_default("--model-path", DEFAULT_MODEL)
 
+print("#" * 20)
+print("Model ", DEFAULT_MODEL)
+print("#" * 20)
 
 for arg in sys.argv:
     arg_str = "NULL"

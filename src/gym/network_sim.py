@@ -30,6 +30,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0,parentdir) 
 from common import sender_obs
 from common.simple_arg_parse import arg_or_default
+from collections import deque
 
 MAX_CWND = 5000
 MIN_CWND = 4
@@ -201,14 +202,15 @@ class Network():
             if push_new_event:
                 #print("##Push event %s from sender to link %d, latency %f at time %f" % (new_event_type, new_next_hop, new_latency, new_event_time))
                 heapq.heappush(self.q, (new_event_time, sender, new_event_type, new_next_hop, new_latency, new_dropped))
-
+        
         sender_mi = self.senders[0].get_run_data()
-        throughput = sender_mi.get("recv rate")  # sender_obs
+        throughput = sender_mi.get("recv rate") / ( 8 * BYTES_PER_PACKET ) # packet per second
         latency = sender_mi.get("avg latency")  
         loss = sender_mi.get("loss ratio")
         bw_cutoff = self.links[0].bw * 0.8
         lat_cutoff = 2.0 * self.links[0].dl * 1.5
         loss_cutoff = 2.0 * self.links[0].lr * 1.5
+
         #print("thpt %f, bw %f" % (throughput, bw_cutoff))
         #reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff or loss > loss_cutoff) else 1 #
         
@@ -216,13 +218,14 @@ class Network():
         #reward = REWARD_SCALE * (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
         # Very high thpt = defualut = model_thpt
-        reward = (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
+        #reward = (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
+        #reward = (10.0 * throughput - 1e3 * latency - 2e3 * loss)
         # High thpt
         #reward = REWARD_SCALE * (5.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
         # Low latency = model_B
         #reward = REWARD_SCALE * (2.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
-        #reward = (2.0 * throughput / (8 * BYTES_PER_PACKET) - 10e3 * latency - 2e3 * loss)
+        reward = (2.0 * throughput - 1e4 * latency - 2e3 * loss)
         #if reward > 857:
         #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
 
@@ -414,6 +417,11 @@ class SimulatedNetworkEnv(gym.Env):
         self.last_thpt = None
         self.last_rate = None
 
+        self.last_100_thpt = deque(maxlen=100)
+        self.last_100_lat = deque(maxlen=100)
+        self.last_100_loss = deque(maxlen=100)
+        self.last_100_rate = deque(maxlen=100)
+
         ##### action space
         if USE_CWND:
             self.action_space = spaces.Box(np.array([-1e12, -1e12]), np.array([1e12, 1e12]), dtype=np.float32)
@@ -440,13 +448,23 @@ class SimulatedNetworkEnv(gym.Env):
         self.episodes_run = -1
 
     def create_new_links_and_senders(self):
-        bw    = random.uniform(self.min_bw, self.max_bw) # 100 ~ 500
-        lat   = random.uniform(self.min_lat, self.max_lat) # 0.05 ~ 0.5
+
+        # Mbps = Mega bit per second  10^6 bit
+        bw    = random.uniform(self.min_bw, self.max_bw) 
+                # 100 ~ 500 (packet per second) / 12000 = 8 * 1500 = bit per packet
+                # 1.2Mbps ~ 6Mbps
+        lat   = random.uniform(self.min_lat, self.max_lat) # 0.05 ~ 0.5 (second) = 50ms ~ 500ms
         queue = 1 + int(np.exp(random.uniform(self.min_queue, self.max_queue))) # 2 ~ 1 + e^8 (2981)
-        loss  = random.uniform(self.min_loss, self.max_loss) # 0.0 ~ 0.05
+        loss  = random.uniform(self.min_loss, self.max_loss) # 0.0 ~ 0.05 (%)
         self.links = [Link(bw, lat, queue, loss), Link(bw, lat, queue, loss)]
-        self.senders = [Sender(random.uniform(0.3, 1.5) * bw, [self.links[0], self.links[1]], 0, self.features, history_len=self.history_len)]
-        self.run_dur = 3 * lat
+        bw_Mbps = ( bw * 12000 ) / 1e6
+        # sending rate (0.3 ~ 1.5 ) * 100 ~ 500 pps      
+        print("\n#Link env : Badnwidth = {:0.2f}pps({:0.4f}Mbps)  Latency = {:0.4f}sec  queue {:d}pkt  Loss rate {:0.2f}% ".format(bw, bw_Mbps, lat, queue, loss*100))
+        sender_rate = random.uniform(0.3, 1.5) * bw
+        sender_rate_bps = (sender_rate * 12000) / 1e6
+        self.senders = [Sender(sender_rate, [self.links[0], self.links[1]], 0, self.features, history_len=self.history_len)]
+        self.run_dur = 3 * lat 
+        print("#sender startingrate {:0.2f}pps({:0.4f}Mpbs)".format(sender_rate, sender_rate_bps))
         
 
         #self.senders = [Sender(0.3 * bw, [self.links[0], self.links[1]], 0, self.history_len)]
@@ -503,6 +521,25 @@ class SimulatedNetworkEnv(gym.Env):
         if event["Latency"] > 0.0:
             self.run_dur = 0.5 * sender_mi.get("avg latency")
             #print("run_dur control : %f" %self.run_dur)
+        
+        mi_send_rate = sender_mi.get("send rate") / 1e6
+        mi_thpt = sender_mi.get("recv rate") / 1e6 #Mbps
+        mi_lat = sender_mi.get("avg latency")
+        mi_loss = sender_mi.get("loss ratio")*100
+        self.last_100_rate.append(mi_send_rate)
+        self.last_100_thpt.append(mi_thpt)
+        self.last_100_lat.append(mi_lat)
+        self.last_100_loss.append(mi_loss)
+        if ( self.steps_taken % 100 == 0 ):
+            avg_mi_send_rate = np.mean(self.last_100_rate)
+            avg_mi_thpt = np.mean(self.last_100_thpt)
+            avg_mi_lat = np.mean(self.last_100_lat)
+            avg_mi_loss = np.mean(self.last_100_loss)
+            avg_reward_thpt = (avg_mi_thpt * 1e6)/ (8 * BYTES_PER_PACKET) # pps
+            #reward_lat = 1e3 * sender_mi.get("avg latency")
+            #reward_loss = 2e3 * sender_mi.get("loss ratio") 
+            
+            print("Send_rate {:0.4f}Mbps, thpt {:0.4f}Mbps[{:0.1f}], latency {:0.4f}[{:0.1f}], loss {:0.2f}%[{:0.1f}]".format(avg_mi_send_rate, avg_mi_thpt, avg_reward_thpt*2, avg_mi_lat, avg_mi_lat*1e4, avg_mi_loss, avg_mi_loss * 20)) 
         #print("Sender obs: %s" % sender_obs)
         should_stop = False
 
