@@ -225,7 +225,7 @@ class Network():
         
         # Low latency = model_B
         #reward = REWARD_SCALE * (2.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
-        reward = (2.0 * throughput - 1e4 * latency - 2e3 * loss)
+        reward = (2.0 * throughput - 5e3 * latency - 2e3 * loss)
         #if reward > 857:
         #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
 
@@ -539,7 +539,7 @@ class SimulatedNetworkEnv(gym.Env):
             #reward_lat = 1e3 * sender_mi.get("avg latency")
             #reward_loss = 2e3 * sender_mi.get("loss ratio") 
             
-            print("Send_rate {:0.4f}Mbps, thpt {:0.4f}Mbps[{:0.1f}], latency {:0.4f}[{:0.1f}], loss {:0.2f}%[{:0.1f}]".format(avg_mi_send_rate, avg_mi_thpt, avg_reward_thpt*2, avg_mi_lat, avg_mi_lat*1e4, avg_mi_loss, avg_mi_loss * 20)) 
+            print("Send_rate {:0.4f}Mbps, thpt {:0.4f}Mbps[{:0.1f}], latency {:0.4f}[{:0.1f}], loss {:0.2f}%[{:0.1f}]".format(avg_mi_send_rate, avg_mi_thpt, avg_reward_thpt*2, avg_mi_lat, avg_mi_lat*5e3, avg_mi_loss, avg_mi_loss * 20)) 
         #print("Sender obs: %s" % sender_obs)
         should_stop = False
 
