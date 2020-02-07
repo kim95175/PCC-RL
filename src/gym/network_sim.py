@@ -38,9 +38,10 @@ MIN_CWND = 4
 MAX_RATE = 1000
 MIN_RATE = 40
 
-REWARD_SCALE = 0.001
-
 MAX_STEPS = 400
+
+#REWARD_SCALE = 0.001
+REWARD_SCALE = 1 / MAX_STEPS
 
 EVENT_TYPE_SEND = 'S'
 EVENT_TYPE_ACK = 'A'
@@ -55,6 +56,8 @@ MAX_LATENCY_NOISE = 1.1
 
 DELTA_SCALE = arg_or_default("--delta-scale", 0.025) # default = 0.025
 HISTORY_LEN = arg_or_default("--history-len", 10)  # default = 10
+
+BIT_PER_MEGABIT = 1024 * 1024
 
 USE_CWND = False    # default = False
 
@@ -207,6 +210,7 @@ class Network():
         throughput = sender_mi.get("recv rate") / ( 8 * BYTES_PER_PACKET ) # packet per second
         latency = sender_mi.get("avg latency")  
         loss = sender_mi.get("loss ratio")
+        
         bw_cutoff = self.links[0].bw * 0.8
         lat_cutoff = 2.0 * self.links[0].dl * 1.5
         loss_cutoff = 2.0 * self.links[0].lr * 1.5
@@ -215,7 +219,7 @@ class Network():
         #reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff or loss > loss_cutoff) else 1 #
         
         # Super high throughput
-        #reward = REWARD_SCALE * (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
+        #reward = (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         
         # Very high thpt = defualut = model_thpt
         #reward = (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
@@ -225,13 +229,33 @@ class Network():
         
         # Low latency = model_B
         #reward = REWARD_SCALE * (2.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
-        reward = (2.0 * throughput - 5e3 * latency - 2e3 * loss)
+        #reward = (2.0 * throughput - 5e3 * latency - 2e3 * loss)
         #if reward > 857:
         #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
 
         #Bad Model testing = model_bad
         #reward = - (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
-
+        
+        '''
+        #Vivace-loss model
+        sending_rate_mbps = sender_mi.get("send rate") / 1e6
+        if loss == 1:
+            loss = 0.99
+        loss_factor = (1/(1-loss)) - 1
+        loss_factor = -1 * loss_factor * sending_rate_mbps 
+        reward = sending_rate_mbps + loss_factor
+        '''
+        '''
+        #PCC Vivace model
+        sending_rate_mbps = sender_mi.get("send rate") / 1e6
+        rtt_inflation = sender_mi.get("latency increase")
+        sending_factor = pow(sending_rate_mbps, 0.9)
+        rtt_factor = 900 * rtt_inflation
+        rtt_factor *= -1.0 * sending_rate_mbps
+        loss_factor = 11.35 * loss
+        loss_factor *= -1.0 * sending_rate_mbps 
+        reward = sending_factor + rtt_factor + loss_factor
+        '''
         #reward = (throughput / RATE_OBS_SCALE) * np.exp(-1 * (LATENCY_PENALTY * latency / LAT_OBS_SCALE + LOSS_PENALTY * loss))
         return reward * REWARD_SCALE
 
@@ -274,10 +298,7 @@ class Sender():
             self.set_rate(self.rate * (1.0 + delta))
         else:
             self.set_rate(self.rate / (1.0 - delta))
-        '''
-        #bad model
-        self.rate = MIN_RATE
-        '''
+        
 
     def apply_cwnd_delta(self, delta):
         delta *= DELTA_SCALE
@@ -423,14 +444,17 @@ class SimulatedNetworkEnv(gym.Env):
         self.last_100_rate = deque(maxlen=100)
 
         ##### action space
+        print("---action_space----")
         if USE_CWND:
             self.action_space = spaces.Box(np.array([-1e12, -1e12]), np.array([1e12, 1e12]), dtype=np.float32)
         else:
             self.action_space = spaces.Box(np.array([-1e12]), np.array([1e12]), dtype=np.float32)
-        print("---action_space----")
         print(self.action_space)
+        print("high : ", self.action_space.high)
+        print("low : ", self.action_space.low)
                    
         #### observation space
+        print("---observation_space----")
         self.observation_space = None
         use_only_scale_free = True
         single_obs_min_vec = sender_obs.get_min_obs_vector(self.features) # [-1, 1, 0]
@@ -438,8 +462,8 @@ class SimulatedNetworkEnv(gym.Env):
         self.observation_space = spaces.Box(np.tile(single_obs_min_vec, self.history_len),
                                             np.tile(single_obs_max_vec, self.history_len),
                                             dtype=np.float32)
-        print("---observation_space----")
         print(self.observation_space)
+        
 
         self.reward_sum = 0.0
         self.reward_ewma = 0.0
@@ -486,7 +510,6 @@ class SimulatedNetworkEnv(gym.Env):
         #print("Actions: %s" % str(actions))     # acitons = Rate Change Factor #print(actions)
         #self.print_debug()
         #print("Step: %d" %self.steps_taken )
-
         # change transmission rate
         for i in range(0, 1): #len(actions)):
             #print("Updating rate for sender %d" % i)
@@ -539,7 +562,7 @@ class SimulatedNetworkEnv(gym.Env):
             #reward_lat = 1e3 * sender_mi.get("avg latency")
             #reward_loss = 2e3 * sender_mi.get("loss ratio") 
             
-            print("Send_rate {:0.4f}Mbps, thpt {:0.4f}Mbps[{:0.1f}], latency {:0.4f}[{:0.1f}], loss {:0.2f}%[{:0.1f}]".format(avg_mi_send_rate, avg_mi_thpt, avg_reward_thpt*2, avg_mi_lat, avg_mi_lat*5e3, avg_mi_loss, avg_mi_loss * 20)) 
+            print("Send_rate {:0.4f}Mbps, thpt {:0.4f}Mbps[{:0.1f}], latency {:0.4f}[{:0.1f}], loss {:0.2f}%[{:0.1f}]".format(avg_mi_send_rate, avg_mi_thpt, avg_reward_thpt, avg_mi_lat, avg_mi_lat, avg_mi_loss, avg_mi_loss)) 
         #print("Sender obs: %s" % sender_obs)
         should_stop = False
 

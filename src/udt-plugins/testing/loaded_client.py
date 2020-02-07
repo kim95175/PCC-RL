@@ -40,7 +40,7 @@ RESET_RATE_MAX = 100.0
 RESET_RATE_MIN = 6.0
 RESET_RATE_MAX = 6.0
 
-DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_lat0205_256t/"
+DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_paper/"
 MODEL_PATH = arg_or_default("--model-path", DEFAULT_MODEL)
 
 print("#" * 20)
