@@ -31,7 +31,8 @@ if not hasattr(sys, 'argv'):
     sys.argv  = ['']
 
 MIN_RATE = 0.5
-MAX_RATE = 300.0
+#MAX_RATE = 30.0
+MAX_RATE = 100.0
 DELTA_SCALE = 0.05
 
 RESET_RATE_MIN = 5.0
@@ -40,7 +41,7 @@ RESET_RATE_MAX = 100.0
 RESET_RATE_MIN = 6.0
 RESET_RATE_MAX = 6.0
 
-DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_paper/"
+DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_specific12-36/"
 MODEL_PATH = arg_or_default("--model-path", DEFAULT_MODEL)
 
 print("#" * 20)

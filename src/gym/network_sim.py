@@ -35,10 +35,13 @@ from collections import deque
 MAX_CWND = 5000
 MIN_CWND = 4
 
-MAX_RATE = 1000
-MIN_RATE = 40
+#MAX_RATE = 1000  # 12 Mbps
+MAX_RATE = 5000    # 60bps
+MIN_RATE = 40    # 0.48 MBps
 
-MAX_STEPS = 400
+#MAX_STEPS = 400
+MAX_STEPS = 600
+
 
 #REWARD_SCALE = 0.001
 REWARD_SCALE = 1 / MAX_STEPS
@@ -48,8 +51,9 @@ EVENT_TYPE_ACK = 'A'
 
 BYTES_PER_PACKET = 1500
 
-LATENCY_PENALTY = 1.0
-LOSS_PENALTY = 1.0
+THROUGHPUT_PENALTY = 10 # 1.2Mbps = 100 pps = 1000
+LATENCY_PENALTY = - 2e4  # 0.1 sec = 100ms = 2000 
+LOSS_PENALTY = - 1e5 # 1% = 0.01 = 1000
 
 USE_LATENCY_NOISE = False
 MAX_LATENCY_NOISE = 1.1
@@ -135,9 +139,13 @@ class Network():
     def get_cur_time(self):
         #print("[time step ",self.cur_time, "]")
         return self.cur_time
+
+    def sigmoid(self, a, x):
+        return 1 / (1+np.exp(a*x))
     
     # network run for dur ( 3 * lat ) = T_m 
     def run_for_dur(self, dur):
+        #print("ruf for dur %f" % dur)
         end_time = self.cur_time + dur
         for sender in self.senders:
             sender.reset_obs()
@@ -207,13 +215,14 @@ class Network():
                 heapq.heappush(self.q, (new_event_time, sender, new_event_type, new_next_hop, new_latency, new_dropped))
         
         sender_mi = self.senders[0].get_run_data()
-        throughput = sender_mi.get("recv rate") / ( 8 * BYTES_PER_PACKET ) # packet per second
+        throughput = sender_mi.get("recv rate") / ( 8 * BYTES_PER_PACKET ) # packet per second  
         latency = sender_mi.get("avg latency")  
         loss = sender_mi.get("loss ratio")
         
         bw_cutoff = self.links[0].bw * 0.8
         lat_cutoff = 2.0 * self.links[0].dl * 1.5
         loss_cutoff = 2.0 * self.links[0].lr * 1.5
+
 
         #print("thpt %f, bw %f" % (throughput, bw_cutoff))
         #reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff or loss > loss_cutoff) else 1 #
@@ -236,6 +245,18 @@ class Network():
         #Bad Model testing = model_bad
         #reward = - (10.0 * throughput / (8 * BYTES_PER_PACKET) - 1e3 * latency - 2e3 * loss)
         
+        #MY Model
+        #utility = np.log(throughput) - np.log(latency)
+        '''
+        if (latency < 0.01):
+            print("throughput, latency : ", throughput, latency)
+            latency = 0.01
+        loss_factor = self.sigmoid(100, loss - 0.1)
+        utility = 20 * throughput / latency
+        reward = loss_factor * utility
+        '''
+        #print(throughput, latency, loss) 2500 
+        reward = 10*throughput - ( 5e4 * latency ) - 5e4 * loss
         '''
         #Vivace-loss model
         sending_rate_mbps = sender_mi.get("send rate") / 1e6
@@ -419,7 +440,8 @@ class SimulatedNetworkEnv(gym.Env):
         # Link Parameter
         self.min_bw, self.max_bw = (100, 500)       # Bandwidth
         self.min_lat, self.max_lat = (0.05, 0.5)    # Latency
-        self.min_queue, self.max_queue = (0, 8)     # Queue size
+        #self.min_queue, self.max_queue = (0, 8)     # Queue size
+        self.min_queue, self.max_queue = (4, 8)  
         self.min_loss, self.max_loss = (0.0, 0.05)  # Random Loss rate
         self.history_len = history_len
         #Features: ['sent latency inflation', 'latency ratio', 'send ratio']
@@ -473,18 +495,28 @@ class SimulatedNetworkEnv(gym.Env):
 
     def create_new_links_and_senders(self):
 
-        # Mbps = Mega bit per second  10^6 bit
+        # Mbps = Mega bit per second  10^6(1,000,000) bit
+        '''
         bw    = random.uniform(self.min_bw, self.max_bw) 
                 # 100 ~ 500 (packet per second) / 12000 = 8 * 1500 = bit per packet
                 # 1.2Mbps ~ 6Mbps
         lat   = random.uniform(self.min_lat, self.max_lat) # 0.05 ~ 0.5 (second) = 50ms ~ 500ms
         queue = 1 + int(np.exp(random.uniform(self.min_queue, self.max_queue))) # 2 ~ 1 + e^8 (2981)
         loss  = random.uniform(self.min_loss, self.max_loss) # 0.0 ~ 0.05 (%)
+        '''
+        # bw = 500 # 6Mbps but 30Mbps in ccrl-uspace
+        bw = random.uniform(1000, 3000)  # 12Mbps ~ 36Mbps
+        lat = 0.032
+        queue = 500
+        loss = 0
+
         self.links = [Link(bw, lat, queue, loss), Link(bw, lat, queue, loss)]
-        bw_Mbps = ( bw * 12000 ) / 1e6
+        self.link_bw_Mbps = ( bw * 12000 ) / 1e6
+        self.link_lat = lat
         # sending rate (0.3 ~ 1.5 ) * 100 ~ 500 pps      
-        print("\n#Link env : Badnwidth = {:0.2f}pps({:0.4f}Mbps)  Latency = {:0.4f}sec  queue {:d}pkt  Loss rate {:0.2f}% ".format(bw, bw_Mbps, lat, queue, loss*100))
-        sender_rate = random.uniform(0.3, 1.5) * bw
+        print("\n#Link env : Badnwidth = {:0.2f}pps({:0.4f}Mbps)  Latency = {:0.4f}sec  queue {:d}pkt  Loss rate {:0.2f}% ".format(bw, self.link_bw_Mbps, lat, queue, loss*100))
+        #sender_rate = random.uniform(0.3, 1.5) * bw
+        sender_rate = random.uniform(0, 2.0) * bw 
         sender_rate_bps = (sender_rate * 12000) / 1e6
         self.senders = [Sender(sender_rate, [self.links[0], self.links[1]], 0, self.features, history_len=self.history_len)]
         self.run_dur = 3 * lat 
@@ -523,7 +555,7 @@ class SimulatedNetworkEnv(gym.Env):
         for sender in self.senders:
             sender.record_run()
         self.steps_taken += 1
-        sender_obs = self._get_all_sender_obs()  # state
+        sender_obs = self._get_all_sender_obs()  # next state
 
         sender_mi = self.senders[0].get_run_data()
         event = {}
@@ -559,10 +591,12 @@ class SimulatedNetworkEnv(gym.Env):
             avg_mi_lat = np.mean(self.last_100_lat)
             avg_mi_loss = np.mean(self.last_100_loss)
             avg_reward_thpt = (avg_mi_thpt * 1e6)/ (8 * BYTES_PER_PACKET) # pps
+            link_utilization = avg_mi_thpt / self.link_bw_Mbps
+            self_inflicted_lat = avg_mi_lat - self.link_lat
             #reward_lat = 1e3 * sender_mi.get("avg latency")
             #reward_loss = 2e3 * sender_mi.get("loss ratio") 
             
-            print("Send_rate {:0.4f}Mbps, thpt {:0.4f}Mbps[{:0.1f}], latency {:0.4f}[{:0.1f}], loss {:0.2f}%[{:0.1f}]".format(avg_mi_send_rate, avg_mi_thpt, avg_reward_thpt, avg_mi_lat, avg_mi_lat, avg_mi_loss, avg_mi_loss)) 
+            print("Send_rate {:0.4f}Mbps, thpt {:0.4f}Mbps[{:0.2f}], latency {:0.4f}[{:0.1f}], loss {:0.2f}%[{:0.1f}]".format(avg_mi_send_rate, avg_mi_thpt, link_utilization, avg_mi_lat, self_inflicted_lat, avg_mi_loss, avg_mi_loss)) 
         #print("Sender obs: %s" % sender_obs)
         should_stop = False
 
