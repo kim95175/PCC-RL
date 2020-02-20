@@ -164,7 +164,7 @@ class Network():
             push_new_event = False # packet 손실시 push 하지 않음
 
             # event type == SEND
-            # 1. send packet to dest through link0
+            # 1. send packet to dest through link[0] next_hop = 0
             if event_type == EVENT_TYPE_SEND:
                 if next_hop == 0:
                     #print("next_hop = 0")
@@ -200,7 +200,7 @@ class Network():
                     else:
                         sender.on_packet_acked(cur_latency)
                         #print("Packet acked at time %f" % self.cur_time)
-                # 2. send ack to sender through link[1]
+                # 2. send ack to sender through link[1] next_hop = 1
                 else:
                     new_next_hop = next_hop + 1
                     link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
@@ -379,14 +379,48 @@ class Sender():
         self.history.step(smi)  # pop old history and push new history
 
     # MI observation data 가져오기
-    def get_run_data(self):
+    def get_run_data(self, steps_taken = 1):
         obs_end_time = self.net.get_cur_time()
         
         #obs_dur = obs_end_time - self.obs_start_time
         #print("Got %d acks in %f seconds" % (self.acked, obs_dur))
         #print("Sent %d packets in %f seconds" % (self.sent, obs_dur))
         #print("self.rate = %f" % self.rate)
+        self.id
+        mi_bytes_sent=self.sent * BYTES_PER_PACKET
+        mi_bytes_acked=self.acked * BYTES_PER_PACKET
+        mi_bytes_lost=self.lost * BYTES_PER_PACKET
+        mi_send_start=self.obs_start_time
+        mi_send_end=obs_end_time
+        mi_recv_start=self.obs_start_time
+        mi_recv_end=obs_end_time
+        mi_rtt_samples=self.rtt_samples
+        half = int(len(mi_rtt_samples) / 2)
+        if half >= 1:
+            first_rtt = np.mean(mi_rtt_samples[:half])
+            last_rtt = np.mean(mi_rtt_samples[half:])
+        else:
+            first_rtt, last_rtt = 0, 0
+        mi_rtt_samples = [first_rtt, last_rtt]
+        mi_packet_size=BYTES_PER_PACKET
+        if(steps_taken % 100 ==0):
+            print("testing_sample, ", mi_bytes_sent, mi_bytes_acked,
+                    mi_bytes_lost, mi_send_start, mi_send_end, mi_recv_start,
+                    mi_recv_end, mi_rtt_samples, mi_packet_size)
 
+        return sender_obs.SenderMonitorInterval(
+            self.id,
+            bytes_sent=mi_bytes_sent,
+            bytes_acked=mi_bytes_acked,
+            bytes_lost=mi_bytes_lost,
+            send_start=mi_send_start,
+            send_end=mi_send_end,
+            recv_start=mi_recv_start,
+            recv_end=mi_recv_end,
+            rtt_samples=mi_rtt_samples,
+            packet_size=BYTES_PER_PACKET
+        )
+        '''
         return sender_obs.SenderMonitorInterval(
             self.id,
             bytes_sent=self.sent * BYTES_PER_PACKET,
@@ -399,6 +433,7 @@ class Sender():
             rtt_samples=self.rtt_samples,
             packet_size=BYTES_PER_PACKET
         )
+        '''
 
     def reset_obs(self):
         self.sent = 0
@@ -496,7 +531,7 @@ class SimulatedNetworkEnv(gym.Env):
     def create_new_links_and_senders(self):
 
         # Mbps = Mega bit per second  10^6(1,000,000) bit
-        '''
+        
         bw    = random.uniform(self.min_bw, self.max_bw) 
                 # 100 ~ 500 (packet per second) / 12000 = 8 * 1500 = bit per packet
                 # 1.2Mbps ~ 6Mbps
@@ -505,18 +540,21 @@ class SimulatedNetworkEnv(gym.Env):
         loss  = random.uniform(self.min_loss, self.max_loss) # 0.0 ~ 0.05 (%)
         '''
         # bw = 500 # 6Mbps but 30Mbps in ccrl-uspace
-        bw = random.uniform(1000, 3000)  # 12Mbps ~ 36Mbps
+        #bw = random.uniform(100, 3000)  # 1.2Mbps ~ 36Mbps
+        bw = 2500
+        #lat   = random.uniform(0.03, 0.2) # 0.05 ~ 0.5 (second) = 30ms ~ 200ms
         lat = 0.032
         queue = 500
+        #queue = 1 + int(np.exp(random.uniform(4, 7))) # 55 ~ 1000
         loss = 0
-
+        '''
         self.links = [Link(bw, lat, queue, loss), Link(bw, lat, queue, loss)]
         self.link_bw_Mbps = ( bw * 12000 ) / 1e6
         self.link_lat = lat
         # sending rate (0.3 ~ 1.5 ) * 100 ~ 500 pps      
         print("\n#Link env : Badnwidth = {:0.2f}pps({:0.4f}Mbps)  Latency = {:0.4f}sec  queue {:d}pkt  Loss rate {:0.2f}% ".format(bw, self.link_bw_Mbps, lat, queue, loss*100))
-        #sender_rate = random.uniform(0.3, 1.5) * bw
-        sender_rate = random.uniform(0, 2.0) * bw 
+        sender_rate = random.uniform(0.3, 1.5) * bw
+        #sender_rate = random.uniform(0, 1.5) * bw 
         sender_rate_bps = (sender_rate * 12000) / 1e6
         self.senders = [Sender(sender_rate, [self.links[0], self.links[1]], 0, self.features, history_len=self.history_len)]
         self.run_dur = 3 * lat 
@@ -557,7 +595,7 @@ class SimulatedNetworkEnv(gym.Env):
         self.steps_taken += 1
         sender_obs = self._get_all_sender_obs()  # next state
 
-        sender_mi = self.senders[0].get_run_data()
+        sender_mi = self.senders[0].get_run_data(steps_taken = self.steps_taken)
         event = {}
         event["Name"] = "Step"
         event["Time"] = self.steps_taken

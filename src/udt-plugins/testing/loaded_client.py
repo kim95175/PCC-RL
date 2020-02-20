@@ -31,8 +31,8 @@ if not hasattr(sys, 'argv'):
     sys.argv  = ['']
 
 MIN_RATE = 0.5
-#MAX_RATE = 30.0
 MAX_RATE = 100.0
+#MAX_RATE = 60.0
 DELTA_SCALE = 0.05
 
 RESET_RATE_MIN = 5.0
@@ -41,7 +41,7 @@ RESET_RATE_MAX = 100.0
 RESET_RATE_MIN = 6.0
 RESET_RATE_MAX = 6.0
 
-DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_specific12-36/"
+DEFAULT_MODEL = "/home/airman/Github/PCC-RL/src/pcc_saved_models/model_paper/"
 MODEL_PATH = arg_or_default("--model-path", DEFAULT_MODEL)
 
 print("#" * 20)
@@ -116,7 +116,11 @@ class PccGymDriver():
 
     def give_sample(self, bytes_sent, bytes_acked, bytes_lost,
                     send_start_time, send_end_time, recv_start_time,
-                    recv_end_time, rtt_samples, packet_size, utility):
+                    recv_end_time, first_rtt, last_rtt, packet_size, utility):
+        rtt_samples = [first_rtt, last_rtt]
+        print("samples, ", bytes_sent, bytes_acked, bytes_lost,
+                    send_start_time, send_end_time, recv_start_time,
+                    recv_end_time, rtt_samples, packet_size, utility)
         self.record_observation(
             sender_obs.SenderMonitorInterval(
                 self.id,
@@ -137,17 +141,19 @@ class PccGymDriver():
 
 def give_sample(flow_id, bytes_sent, bytes_acked, bytes_lost,
                 send_start_time, send_end_time, recv_start_time,
-                recv_end_time, rtt_samples, packet_size, utility):
+                recv_end_time, first_rtt, last_rtt, packet_size, utility):
     driver = PccGymDriver.get_by_flow_id(flow_id)
     driver.give_sample(bytes_sent, bytes_acked, bytes_lost,
                        send_start_time, send_end_time, recv_start_time,
-                       recv_end_time, rtt_samples, packet_size, utility)
+                       recv_end_time, first_rtt, last_rtt, packet_size, utility)
 
 def apply_rate_delta(rate, rate_delta):
     global MIN_RATE
     global MAX_RATE
     global DELTA_SCALE
     
+    #print("rate_delta : ", rate_delta)
+
     rate_delta *= DELTA_SCALE
 
     # We want a string of actions with average 0 to result in a rate change
@@ -163,6 +169,8 @@ def apply_rate_delta(rate, rate_delta):
         rate = MIN_RATE
     if rate > MAX_RATE:
         rate = MAX_RATE
+    
+    #print("rate : ", rate)
 
     return rate
     
